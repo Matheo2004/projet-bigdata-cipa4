@@ -48,6 +48,11 @@ if ("created_user" %in% names(data)) {
   data$created_user[data$created_user == "Thibaut DELAIRE"] <- "thibaut.delaire"
 }
 
+if ("fk_stadedev" %in% names(data)) {
+  data$fk_stadedev[data$fk_stadedev == "Adulte"] <- "adulte"
+  data$fk_stadedev[data$fk_stadedev == "Jeune"] <- "jeune"
+}
+
 if ("src_geo" %in% names(data)) {
   data$src_geo[data$src_geo == "Orthophoto plan"] <- "Orthophoto"
   data$src_geo[data$src_geo == "Plan ortho"] <- "Orthophoto"
@@ -62,6 +67,10 @@ for (v in num_vars) {
   if (v %in% names(data)) {
     data[[v]] <- to_numeric(data[[v]])
   }
+}
+
+if ("age_estim" %in% names(data)) {
+  data <- data[data$age_estim != 2010 | is.na(data$age_estim), ]
 }
 
 
