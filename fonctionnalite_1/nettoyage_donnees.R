@@ -37,6 +37,23 @@ for (col in names(data)) {
   }
 }
 
+if ("clc_quartier" %in% names(data)) {
+  data$clc_quartier[data$clc_quartier == "HARLY"] <- "Quartier Harly"
+  data$clc_quartier[data$clc_quartier == "OMISSY"] <- "Quartier Omissy"
+  data$clc_quartier[data$clc_quartier == "ROUVROY"] <- "Quartier Rouvroy"
+}
+
+if ("created_user" %in% names(data)) {
+  data$created_user[data$created_user == "Edouard Cauchon"] <- "edouard.cauchon"
+  data$created_user[data$created_user == "Thibaut DELAIRE"] <- "thibaut.delaire"
+}
+
+if ("src_geo" %in% names(data)) {
+  data$src_geo[data$src_geo == "Orthophoto plan"] <- "Orthophoto"
+  data$src_geo[data$src_geo == "Plan ortho"] <- "Orthophoto"
+  data$src_geo[data$src_geo == "à renseigner"] <- NA
+}
+
 
 # -----------------------------
 # CONVERSION EN NUMÉRIQUE
@@ -47,17 +64,6 @@ for (v in num_vars) {
   }
 }
 
-
-# -----------------------------
-# HARMONISATION DES VARIABLES
-# -----------------------------
-
-# Remplace les valeurs de "remarquable"
-if ("remarquable" %in% names(data)) {
-  data$remarquable <- ifelse(data$remarquable == "OUI", "Oui",
-                             ifelse(data$remarquable == "NON", "Non",
-                                    data$remarquable))
-}
 
 # -----------------------------
 # SUPPRESSION DES DOUBLONS
