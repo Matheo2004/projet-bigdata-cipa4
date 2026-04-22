@@ -41,7 +41,8 @@ to_numeric <- function(x) {
 # Cree un tableau de frequences lisible pour une variable qualitative
 safe_table <- function(x) {
   x[x == ""] <- NA
-  sort(table(x, useNA = "ifany"), decreasing = TRUE)
+  # dnn = NULL evite l'affichage du libelle automatique "x" avant le tableau
+  sort(table(x, useNA = "ifany", dnn = NULL), decreasing = TRUE)
 }
 
 # Choix du fichier: on privilegie le fichier propre s'il existe

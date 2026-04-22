@@ -4,11 +4,49 @@ library(Factoshiny)
 library(ggpubr)
 library(questionr)
 
-# Configuration de l'environnement de travail
-setwd("C:\\Users\\CMoi\\Documents\\Projet_Big_Data")
+# Cette fonction trouve le dossier du script en cours.
+# Elle permet d'eviter les chemins absolus qui cassent selon la machine.
+get_script_dir <- function() {
+  file_arg <- "--file="
+  args <- commandArgs(trailingOnly = FALSE)
+  match <- grep(file_arg, args)
+
+  if (length(match) > 0) {
+    return(dirname(normalizePath(sub(file_arg, "", args[match[1]]))))
+  }
+
+  if (!is.null(sys.frames()[[1]]$ofile)) {
+    return(dirname(normalizePath(sys.frames()[[1]]$ofile)))
+  }
+
+  return(getwd())
+}
+
+# Cette fonction cherche automatiquement le dossier "data".
+# On teste plusieurs emplacements possibles selon la facon dont le script est lance.
+resolve_data_dir <- function() {
+  script_dir <- get_script_dir()
+  candidates <- c(
+    file.path(script_dir, "..", "data"),
+    file.path(script_dir, "data"),
+    file.path(getwd(), "data")
+  )
+
+  for (path in candidates) {
+    if (dir.exists(path)) {
+      return(normalizePath(path, winslash = "/", mustWork = TRUE))
+    }
+  }
+
+  stop("Dossier 'data' introuvable. Verifie le dossier projet.")
+}
+
+# Resolution des chemins de lecture/ecriture
+data_dir <- resolve_data_dir()
+input_path <- file.path(data_dir, "Data_Arbre_Input.csv")
 
 # Importation du dataset (gestion de l'encodage UTF-8 et conversion automatique en facteurs)
-arbres = read.csv2("Data_Arbre_Clean.csv", fileEncoding = "utf-8", stringsAsFactors = T, sep = ',')
+arbres = read.csv2(input_path, fileEncoding = "utf-8", stringsAsFactors = T, sep = ',')
 
 # Data Cleaning : Suppression des valeurs aberrantes sur l'âge estimé
 arbres = arbres %>% filter(age_estim < 2000)

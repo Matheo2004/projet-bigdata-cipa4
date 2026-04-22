@@ -1,13 +1,13 @@
----
-  title: "Rapport - Projet Big Data CIPA4"
+﻿---
+title: "Rapport - Projet Big Data CIPA4"
 author: "Mathéo, Marie, Padrig"
 date: "`r format(Sys.Date(), '%d/%m/%Y')`"
 output:
   html_document:
-  toc: true
+    toc: true
 ---
   
-  ```{r setup, include=FALSE}
+```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
 library(knitr)
 
@@ -69,7 +69,7 @@ cat(readLines("fonctionnalite_1/description_jeu_de_donnees.md", warn = FALSE), s
 
 Interpretation:
   
-  -   Le jeu `Input` correspond aux donnees brutes.
+-   Le jeu `Input` correspond aux donnees brutes.
 -   Le jeu `Clean` correspond aux donnees apres traitement.
 
 ## 1.2 Nettoyage des donnees + valeurs manquantes/aberrantes + doublons + export
@@ -80,7 +80,7 @@ source("fonctionnalite_1/nettoyage_donnees.R")
 
 Interpretation:
   
-  -   Le script affiche les valeurs manquantes par variable.
+-   Le script affiche les valeurs manquantes par variable.
 -   Il applique le nettoyage, filtre les valeurs aberrantes, supprime les doublons.
 -   Il exporte le fichier final `data/Data_Arbre_Clean.csv`.
 
@@ -92,73 +92,71 @@ source("fonctionnalite_1/statistiques_descriptives.R")
 
 Interpretation:
   
-  -   Les statistiques univariees decrivent chaque variable separement.
--   Les statistiques bivariees montrent les liens entre variables (tableaux croises).
--   La correlation `haut_tot` vs `tronc_diam` est aussi produite ici.
-
+-   Les statistiques univariees decrivent chaque variable separement.
 
 # 2. Visualisation des donnees sur des graphiques
 
-```{r fig-etat, echo=FALSE, fig.cap="Repartition par etat"}
+```{r fig-etat, echo=FALSE}
 knitr::include_graphics(img_path("repartition_etat.png"))
 ```
 
-```{r fig-age, echo=FALSE, fig.cap="Repartition par age"}
+```{r fig-age, echo=FALSE}
 knitr::include_graphics(img_path("repartition_age.png"))
 ```
 
-```{r fig-quartier, echo=FALSE, fig.cap="Repartition par quartier"}
+```{r fig-quartier, echo=FALSE}
 knitr::include_graphics(img_path("repartition_quartier.png"))
 ```
 
-```{r fig-stade, echo=FALSE, fig.cap="Repartition par stade de developpement"}
+```{r fig-stade, echo=FALSE}
 knitr::include_graphics(img_path("repartition_stade_dev.png"))
 ```
 
 # 3. Visualisation des donnees sur une carte
 
-```{r carte-1, echo=FALSE, fig.cap="Carte 1 - Tous les arbres"}
+```{r carte-1, echo=FALSE}
 knitr::include_graphics(img_path("carte1_tous_les_arbres.png"))
 ```
 
-```{r carte-2, echo=FALSE, fig.cap="Carte 2 - Arbres remarquables"}
+```{r carte-2, echo=FALSE}
 knitr::include_graphics(img_path("carte2_arbres_remarquables.png"))
 ```
 
-```{r carte-3, echo=FALSE, fig.cap="Carte 3 - Densite par quartier"}
+```{r carte-3, echo=FALSE}
 knitr::include_graphics(img_path("carte3_densite_quartier.png"))
 ```
 
-```{r carte-4, echo=FALSE, fig.cap="Carte 4 - Etat des arbres"}
+```{r carte-4, echo=FALSE}
 knitr::include_graphics(img_path("carte4_etat_arbres.png"))
 ```
 
 # 4. Etude des correlations
 
-```{r run-fonctionnalite-4-5}
+```{r run-correlation-part1}
 source("fonctionnalite_4-5/correlation.R")
 ```
 
 ## Estimation de l'âge
 
-Pour estimer l’âge de l’arbre les variables importantes sont celles qui touche à la physiologie de l’arbre donc la hauteur du tronc et la hauteur totale ainsi que le diamètre du tronc.
-Nous allons donc étudier la corrélation de ces variables avec l’âge estimé.
+Pour estimer l'âge des arbres, nous avons d'abord regardé des variables simples et disponibles dans le jeu de données: la hauteur totale, la hauteur du tronc et le diamètre du tronc.
+L'objectif est de voir lesquelles sont les plus liées à l'âge estimé.
 ```{r corr, echo=FALSE, fig.cap="Tableau de Corrélation"}
 knitr::include_graphics(img_path("correlation.png"))
 ```
-Nous pouvons voir qu’une forte corrélation existe entre l’âge estimé et le diamètre du tronc ainsi que la hauteur du tronc mais aucune pour la hauteur totale. Nous pouvons hypothéser sur la dépendance de ces deux variables mais il est important d’évaluer l’interaction entre le diamètre et la taille de l’arbre.
+Dans notre tableau, l'âge estimé est surtout corrélé avec le diamètre du tronc et, dans une moindre mesure, la hauteur du tronc. La hauteur totale semble moins informative.
+Ce constat reste descriptif: il montre une association, pas une causalité.
 ```{r interaction, echo=FALSE, fig.cap="Etude des Interactions"}
 knitr::include_graphics(img_path("interaction.png"))
 ```
-Nous pouvons observer une forte interaction entre le diamètre du tronc et sa hauteur ce qui signifie que l’impact du diamètre du tronc sur l’âge dépend de la hauteur du tronc, ce qui peut être dû une exposition plus importante au soleil pour les arbres qui sont hauts.
-En faisant le modèle de l’âge selon le diamètre et la hauteur du tronc en interaction nous obtenons un modèle avec une précision de 61% ce qui est un modèle intéressant mais pas excellent.
+Le graphique d'interaction suggère que l'effet du diamètre peut varier selon la hauteur du tronc.
+Le modèle avec interaction obtient une qualité de prédiction d'environ 61%, ce qui est correct pour une première approche mais encore limité.
 
-Des pistes pour améliorer ce modèle est d’affiner sur l’espèce ou le quartier.
-Pour cela j’ai comparé plusieurs modèles en ajoutant le nom latin ou le quartier en interaction et en ajoutant la seconde variable sans interaction.
+Pour améliorer le modèle, nous avons testé l'ajout de variables de contexte (espèce et quartier), avec et sans interaction.
 ```{r compar-model, echo=FALSE, fig.cap="Comparaison des modèles"}
 knitr::include_graphics(img_path("compar_model.png"))
 ```
-Le modèle le plus performant est le 4e car son rss est le plus faible c’est-à-dire que son écart à la moyenne est le plus faible il est donc le modèle le plus précis avec une précision de 76%. Cela signifie que les variables qui explique le plus l’âge sont les dimensions du tronc et son espèce avec une petite influence sur le quartier par la gestion ou le type de sol.
+Dans nos essais, le modèle 4 est celui qui donne le meilleur compromis (RSS plus faible), avec une précision d'environ 76%.
+Cela indique que les dimensions du tronc restent centrales, et que l'espèce apporte de l'information supplémentaire. L'effet du quartier existe, mais semble plus modéré.
 
 ## Ajout d'arbres dans des quartiers
 
@@ -166,24 +164,28 @@ Pour déterminer dans quels quartiers nous devons ajouter des arbres, nous devon
 ```{r tab-croise, echo=FALSE, fig.cap="Tableau Croisé"}
 knitr::include_graphics(img_path("tab_croise.png"))
 ```
-Nous pouvons ainsi observer que certains quartiers ont beaucoup d’arbres adulte et vieux comme le quartier de Saint-Jean avec 7% de ses arbres qui sont vieux et 70% de ses arbres qui sont adultes alors que d’autres ont une plus grande proportion de jeunes comme le quartier de Vermandois qui a 70% de ses arbres qui sont jeunes.
-Pour vérifier que notre échantillon représente toute la population nous devons faire un test de chi2 afin de vérifier la dépendance de ces deux valeurs.
+Le tableau croisé montre des profils différents selon les quartiers: certains ont une proportion plus forte d'arbres adultes/vieux, d'autres davantage de jeunes.
+Pour vérifier que ces différences ne sont pas seulement dues au hasard d'échantillonnage, nous avons appliqué un test du chi2.
 ```{r chi2, echo=FALSE, fig.cap="Test du Chi2"}
 knitr::include_graphics(img_path("test_chi2.png"))
 ```
-On peut voir que la p-value est très inférieure à 5% ce qui veut dire qu’une différence de répartition du stade de développement par quartier n’est pas dû au hasard, cela est renforcée par le x-squared, qui représente l’écart entre le réel et ce que serait la valeur si elle était aléatoire, qui est très grande. Cette différence par quartier peut s’expliquer par des quartiers plus jeunes que d’autres.
+La p-value obtenue est très inférieure à 5%, donc on rejette l'hypothèse d'indépendance entre quartier et stade de développement.
+Autrement dit, la répartition des stades varie bien selon le quartier dans nos données.
 ```{r mosaic, echo=FALSE, fig.cap="Graphique de corrélation"}
 knitr::include_graphics(img_path("mosaicplot.png"))
 ```
-Avec ce graphique on peut observer en bleu les quartiers qui ont sur-représentation d’arbres par rapport à la moyenne et en rouge ceux qui ont une sous-représentation.
-On peut donc en déduire qu’il faudrait planter des arbres dans les quartiers de l’Europe, de Neuville et de Harly qui ont une forte sous-représentation de jeunes arbres.
+Le graphique mosaïque aide à visualiser les sur/sous-représentations par quartier.
+Sur cette base, les quartiers de l'Europe, de Neuville et de Harly ressortent comme des zones où la part de jeunes arbres est plus faible, donc potentiellement prioritaires pour la plantation.
 
 ## Prédiction d'arbres à abattre
-Pour prédire l’abattage d’un arbre nous avons fait une régression logistique c’est-à-dire que nous avons transformé les données en probabilité qu’un arbre soit abattu en valeur entre 0 et 1.
-Pour cela nous avons sélectionné comme variables des données physiologiques comme la taille ou le diamètre de tronc mais également des facteurs externes tel que le quartier, la situation géographique ou son secteur. Nous avons filtré les arbres qui possédait toutes ces variables ce qui a baissé le nombre d’arbres analysés à 8973 au lieu des 11400 de base.
-Le modèle présente une très forte capacité prédictive. On l'observe par la déviance résiduelle (207.82) qui est bien inférieure à la déviance nulle (534.40). Cela signifie que l'introduction de nos variables réduit l'incertitude du modèle de plus de 60%. Avec un AIC de 823.82, le modèle est statistiquement robuste pour identifier les arbres à risque.
-En isolant les individus présentant une probabilité d'abattage égale ou supérieure à 45 %, j'ai pu dresser une carte de vulnérabilité identifiant les arbres situés dans la "zone grise" du risque. Cette étude révèle que le risque n'est pas aléatoire mais se concentre sur des segments urbains spécifiques, notamment la Rue Fleming et l'Avenue Robert Schuman. La signature morphologique détectée par le modèle montre que la combinaison d’un port semi-libre et d’un pied en bande de terre constitue le facteur de risque majeur dans ces secteurs.
-L'analyse de cet échantillon de 11 arbres valide la puissance prédictive du modèle : 7 d'entre eux ont déjà été abattus dans la réalité. Les 4 arbres encore « En Place » constituent des anomalies statistiques majeures. Bien qu'actuellement vivants, ils possèdent toutes les caractéristiques des arbres déjà supprimés.
+Pour estimer le risque d'abattage, nous avons entraîné une régression logistique qui donne, pour chaque arbre, une probabilité comprise entre 0 et 1.
+Le modèle utilise des variables de dimensions (hauteur, diamètre, âge estimé) et des variables de contexte (quartier, secteur, situation, etc.).
+Après filtrage des valeurs manquantes, l'analyse porte sur 8973 arbres.
+
+Les indicateurs globaux vont dans le sens d'un modèle utile (déviance résiduelle plus faible que la déviance nulle), mais ce résultat doit être interprété avec prudence: il faudrait idéalement une validation sur un jeu test séparé pour confirmer la performance.
+
+En prenant un seuil de 45%, nous obtenons une liste d'arbres à surveiller en priorité.
+Dans cet échantillon, plusieurs arbres avaient déjà été abattus, ce qui suggère que le score capte une partie du risque, sans garantir une prédiction parfaite arbre par arbre.
 
 
 # 6. Export du fichier nettoye
@@ -196,6 +198,9 @@ Fichier exporte:
 
 # 7. Diagramme de Gantt
 
-```{r fig-gantt, echo=FALSE, fig.cap="Diagramme de Gantt du projet"}
+```{r fig-gantt, echo=FALSE}
 knitr::include_graphics(img_path("Gant.png"))
 ```
+
+
+
