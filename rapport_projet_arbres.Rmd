@@ -198,3 +198,9 @@ L'export est deja realise en section **1.2** via le script `fonctionnalite_1/net
 Fichier exporte:
 
 -   `data/Data_Arbre_Clean.csv`
+
+# 7. Diagramme de Gantt
+
+```{r fig-gantt, echo=FALSE, fig.cap="Diagramme de Gantt du projet"}
+knitr::include_graphics(img_path("Gant.png"))
+```
