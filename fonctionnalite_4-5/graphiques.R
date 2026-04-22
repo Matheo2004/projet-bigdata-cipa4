@@ -5,10 +5,10 @@ library(ggpubr)
 library(questionr)
 
 # définir le répertoire de travail
-setwd("C:\\Users\\CMoi\\Documents\\Projet_Big_Data")
+
 
 # importer le jeu de données
-arbres = read.csv2("Data_Arbre_Clean.csv", fileEncoding = "utf-8", stringsAsFactors = T, sep = ',')
+arbres = read.csv2("data/Data_Arbre_Clean.csv", fileEncoding = "utf-8", stringsAsFactors = T, sep = ',')
 
 names(arbres)
 
@@ -77,7 +77,12 @@ anova(modele1,modele2,modele3,modele4,modele5)
 tab<-table(arbres$clc_quartier,arbres$fk_stadedev)
 lprop(tab)
 chisq.test(tab)
-mosaicplot(tab, las = 2, shade = TRUE)+labs(title = "Lien entre Quartier et Stade de Développement")
+mosaicplot(
+  tab,
+  las = 2,
+  shade = TRUE,
+  main = "Lien entre Quartier et Stade de Développement"
+)
 
 # ==========================================================
 # ANALYSE PRÉDICTIVE DES ABATTAGES (RÉGRESSION LOGISTIQUE)
@@ -135,3 +140,4 @@ liste_alertes <- arbres_etude %>%
 
 head(liste_alertes, 10)
 #Seul 8973 arbres ont pu être analysés car manque de valeurs dans certaines catégories
+

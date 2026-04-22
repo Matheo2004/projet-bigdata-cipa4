@@ -1,6 +1,6 @@
 ---
 title: "Rapport - Projet Big Data CIPA4"
-author: "Groupe CIPA4"
+author: "Mathéo, Marie, Padrig"
 date: "`r format(Sys.Date(), '%d/%m/%Y')`"
 output:
   html_document:
@@ -69,6 +69,10 @@ kable(
   ),
   caption = "Dimensions des jeux de donnees"
 )
+```
+
+```{r include-description-md, echo=FALSE, results='asis'}
+cat(readLines("fonctionnalite_1/description_jeu_de_donnees.md", warn = FALSE), sep = "\n")
 ```
 
 Interpretation:
@@ -152,44 +156,15 @@ knitr::include_graphics(img_path("carte4_etat_arbres.png"))
 
 # 4. Etude des correlations
 
-Les correlations sont deja calculees en section **1.3** via le script `fonctionnalite_1/statistiques_descriptives.R`.
+```{r run-fonctionnalite-4-5}
+source("fonctionnalite_4-5/graphiques.R")
+```
 
 # 5. Prediction de la variable « Age estime »
 
-```{r prediction-age}
-if (!is.null(df_clean) && all(c("age_estim", "haut_tot", "haut_tronc", "tronc_diam", "clc_nbr_diag") %in% names(df_clean))) {
-  to_num <- function(x) suppressWarnings(as.numeric(gsub(",", ".", x)))
+La prediction est produite par le script execute en section **4** :
 
-  model_df <- data.frame(
-    age_estim = to_num(df_clean$age_estim),
-    haut_tot = to_num(df_clean$haut_tot),
-    haut_tronc = to_num(df_clean$haut_tronc),
-    tronc_diam = to_num(df_clean$tronc_diam),
-    clc_nbr_diag = to_num(df_clean$clc_nbr_diag)
-  )
-
-  model_df <- model_df[complete.cases(model_df), ]
-
-  set.seed(42)
-  idx <- sample(seq_len(nrow(model_df)), size = floor(0.8 * nrow(model_df)))
-  train <- model_df[idx, ]
-  test <- model_df[-idx, ]
-
-  mod <- lm(age_estim ~ haut_tot + haut_tronc + tronc_diam + clc_nbr_diag, data = train)
-  pred <- predict(mod, newdata = test)
-
-  mae <- mean(abs(test$age_estim - pred))
-  rmse <- sqrt(mean((test$age_estim - pred)^2))
-
-  kable(
-    data.frame(
-      metrique = c("MAE", "RMSE", "Taille train", "Taille test"),
-      valeur = c(round(mae, 3), round(rmse, 3), nrow(train), nrow(test))
-    ),
-    caption = "Resultats du modele lineaire de prediction de age_estim"
-  )
-}
-```
+-   `fonctionnalite_4-5/graphiques.R`
 
 # 6. Export du fichier nettoye
 

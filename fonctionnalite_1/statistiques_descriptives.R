@@ -100,32 +100,3 @@ for (v in cat_vars) {
   cat("\nVariable :", v, "\n")
   print(safe_table(data[[v]]))
 }
-
-# Tableau croise etat / situation
-if (all(c("fk_arb_etat", "fk_situation") %in% names(data))) {
-  cat("\n=== TABLEAU CROISE ETAT x SITUATION ===\n")
-  print(table(data$fk_arb_etat, data$fk_situation, useNA = "ifany"))
-}
-
-# Tableau croise remarquable / feuillage
-if (all(c("remarquable", "feuillage") %in% names(data))) {
-  cat("\n=== TABLEAU CROISE REMARQUABLE x FEUILLAGE ===\n")
-  print(table(data$remarquable, data$feuillage, useNA = "ifany"))
-}
-
-# Correlation entre hauteur totale et diametre du tronc
-if (all(c("haut_tot", "tronc_diam") %in% names(data))) {
-  cat("\n=== CORRELATION haut_tot x tronc_diam ===\n")
-  x <- to_numeric(data$haut_tot)
-  y <- to_numeric(data$tronc_diam)
-  print(cor(x, y, use = "complete.obs"))
-}
-
-# Hauteur moyenne regroupee par situation
-if (all(c("fk_situation", "haut_tot") %in% names(data))) {
-  cat("\n=== HAUTEUR MOYENNE PAR SITUATION ===\n")
-  x <- to_numeric(data$haut_tot)
-  res <- aggregate(x, by = list(data$fk_situation), mean, na.rm = TRUE)
-  names(res) <- c("situation", "hauteur_moyenne")
-  print(res)
-}
