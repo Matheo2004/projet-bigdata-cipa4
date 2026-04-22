@@ -1,3 +1,5 @@
+# Cette fonction trouve le dossier du script en cours.
+# Elle permet d'eviter les chemins absolus qui cassent selon la machine.
 get_script_dir <- function() {
   file_arg <- "--file="
   args <- commandArgs(trailingOnly = FALSE)
@@ -11,99 +13,145 @@ get_script_dir <- function() {
     return(dirname(normalizePath(sys.frames()[[1]]$ofile)))
   }
 
-  getwd()
+  return(getwd())
 }
 
-data_path <- file.path(get_script_dir(), "..", "data", "Data_Arbre_Input.csv")
-data <- read.csv(data_path, stringsAsFactors = FALSE)
+# Cette fonction cherche automatiquement le dossier "data".
+# On teste plusieurs emplacements possibles selon la facon dont le script est lance.
+resolve_data_dir <- function() {
+  script_dir <- get_script_dir()
+  candidates <- c(
+    file.path(script_dir, "..", "data"),
+    file.path(script_dir, "data"),
+    file.path(getwd(), "data")
+  )
 
+  for (path in candidates) {
+    if (dir.exists(path)) {
+      return(normalizePath(path, winslash = "/", mustWork = TRUE))
+    }
+  }
+
+  stop("Dossier 'data' introuvable. Verifie le dossier projet.")
+}
+
+# Convertit une colonne texte en numerique
+# (utile si des virgules sont utilisees comme separateur decimal).
+to_numeric <- function(x) {
+  suppressWarnings(as.numeric(gsub(",", ".", x)))
+}
+
+# Nettoie toutes les colonnes texte:
+# - supprime les espaces inutiles
+# - remplace les chaines vides par NA
+clean_text_columns <- function(df) {
+  for (col in names(df)) {
+    if (is.character(df[[col]])) {
+      df[[col]] <- trimws(df[[col]])
+      df[[col]][df[[col]] == ""] <- NA
+    }
+  }
+  return(df)
+}
+
+# Harmonise quelques valeurs connues pour avoir des categories coherentes.
+# Cela evite d'avoir plusieurs ecritures pour la meme information.
+harmonize_values <- function(df) {
+  if ("clc_quartier" %in% names(df)) {
+    df$clc_quartier[df$clc_quartier == "HARLY"] <- "Quartier Harly"
+    df$clc_quartier[df$clc_quartier == "OMISSY"] <- "Quartier Omissy"
+    df$clc_quartier[df$clc_quartier == "ROUVROY"] <- "Quartier Rouvroy"
+  }
+
+  if ("created_user" %in% names(df)) {
+    df$created_user[df$created_user == "Edouard Cauchon"] <- "edouard.cauchon"
+    df$created_user[df$created_user == "Thibaut DELAIRE"] <- "thibaut.delaire"
+  }
+
+  if ("fk_stadedev" %in% names(df)) {
+    df$fk_stadedev[df$fk_stadedev == "Adulte"] <- "adulte"
+    df$fk_stadedev[df$fk_stadedev == "Jeune"] <- "jeune"
+  }
+
+  if ("src_geo" %in% names(df)) {
+    df$src_geo[df$src_geo %in% c("Orthophoto plan", "Plan ortho")] <- "Orthophoto"
+    src_geo_norm <- trimws(tolower(df$src_geo))
+    df$src_geo[src_geo_norm %in% c("à renseigner", "a renseigner", "ã  renseigner")] <- NA
+  }
+
+  return(df)
+}
+
+# Convertit en numerique seulement les colonnes qui existent dans le jeu de donnees.
+convert_numeric_columns <- function(df, cols) {
+  for (col in cols) {
+    if (col %in% names(df)) {
+      df[[col]] <- to_numeric(df[[col]])
+    }
+  }
+  return(df)
+}
+
+# Resolution des chemins de lecture/ecriture
+data_dir <- resolve_data_dir()
+input_path <- file.path(data_dir, "Data_Arbre_Input.csv")
+output_path <- file.path(data_dir, "Data_Arbre_Clean.csv")
+
+# Verification simple: on arrete si le fichier source est absent
+if (!file.exists(input_path)) {
+  stop(paste("Fichier introuvable :", input_path))
+}
+
+# Lecture du fichier brut
+data <- read.csv(input_path, stringsAsFactors = FALSE, check.names = FALSE)
+
+# Colonnes numeriques utilisees dans le nettoyage
 num_vars <- c("haut_tot", "haut_tronc", "tronc_diam", "age_estim", "clc_nbr_diag", "X", "Y")
 
-make_numeric <- function(x) {
-  x <- gsub(",", ".", x)
-  suppressWarnings(as.numeric(x))
+cat("=== DEBUT DU NETTOYAGE ===\n")
+cat("Lignes initiales :", nrow(data), "\n")
+
+# Etapes de preparation
+data <- clean_text_columns(data)
+data <- harmonize_values(data)
+data <- convert_numeric_columns(data, num_vars)
+
+# Suppression d'ages clairement aberrants
+if ("age_estim" %in% names(data)) {
+  data <- data[data$age_estim <= 500 | is.na(data$age_estim), ]
 }
 
-for (v in num_vars) {
-  if (v %in% names(data)) {
-    data[[v]] <- make_numeric(data[[v]])
-  }
-}
+# Suppression des doublons exacts
+dup_idx <- duplicated(data)
+nb_doublons <- sum(dup_idx, na.rm = TRUE)
+data <- data[!dup_idx, ]
 
-cat("=== VALEURS MANQUANTES ===\n")
-manquants <- data.frame(
-  variable = names(data),
-  nb_manquants = sapply(data, function(x) sum(is.na(x) | x == "")),
-  pourcentage = round(sapply(data, function(x) mean(is.na(x) | x == "") * 100), 2),
-  row.names = NULL
-)
-manquants <- manquants[order(-manquants$nb_manquants), ]
-print(manquants)
-
-cat("\n=== VALEURS ABERRANTES (methode IQR) ===\n")
-detect_outliers <- function(x) {
-  x <- x[!is.na(x)]
-  if (length(x) == 0) {
-    return(c(nb_aberrantes = 0, borne_inf = NA, borne_sup = NA))
-  }
-  q1 <- quantile(x, 0.25, na.rm = TRUE)
-  q3 <- quantile(x, 0.75, na.rm = TRUE)
-  iqr <- q3 - q1
-  low <- q1 - 1.5 * iqr
-  high <- q3 + 1.5 * iqr
-  n_out <- sum(x < low | x > high, na.rm = TRUE)
-  c(nb_aberrantes = n_out, borne_inf = low, borne_sup = high)
-}
-
-aberrantes <- data.frame(
-  variable = num_vars[num_vars %in% names(data)],
-  nb_aberrantes = NA,
-  borne_inf = NA,
-  borne_sup = NA,
-  row.names = NULL
-)
-
-for (i in seq_len(nrow(aberrantes))) {
-  stats <- detect_outliers(data[[aberrantes$variable[i]]])
-  aberrantes$nb_aberrantes[i] <- stats["nb_aberrantes"]
-  aberrantes$borne_inf[i] <- round(stats["borne_inf"], 2)
-  aberrantes$borne_sup[i] <- round(stats["borne_sup"], 2)
-}
-
-print(aberrantes)
-
-cat("\n=== DOUBLONS ===\n")
-
-doublons_lignes <- duplicated(data)
-cat("Nombre de lignes dupliquees exactes :", sum(doublons_lignes), "\n")
-
-if ("OBJECTID" %in% names(data)) {
-  doublons_objectid <- duplicated(data$OBJECTID) | duplicated(data$OBJECTID, fromLast = TRUE)
-  cat("Nombre de lignes impliquees dans des doublons sur OBJECTID :", sum(doublons_objectid, na.rm = TRUE), "\n")
-}
-
-if ("id_arbre" %in% names(data)) {
-  doublons_id_arbre <- duplicated(data$id_arbre) | duplicated(data$id_arbre, fromLast = TRUE)
-  cat("Nombre de lignes impliquees dans des doublons sur id_arbre :", sum(doublons_id_arbre, na.rm = TRUE), "\n")
-}
-
+# Suppression des doublons de coordonnees puis des lignes sans coordonnees
+nb_doublons_coord <- 0
+nb_sans_coord <- 0
 if (all(c("X", "Y") %in% names(data))) {
-  coords <- paste(data$X, data$Y, sep = "_")
-  doublons_coords <- duplicated(coords) | duplicated(coords, fromLast = TRUE)
-  cat("Nombre de lignes impliquees dans des doublons de coordonnees X/Y :", sum(doublons_coords, na.rm = TRUE), "\n")
+  dup_coord <- duplicated(data[c("X", "Y")])
+  nb_doublons_coord <- sum(dup_coord, na.rm = TRUE)
+  data <- data[!dup_coord, ]
+
+  coord_na <- is.na(data$X) | is.na(data$Y)
+  nb_sans_coord <- sum(coord_na, na.rm = TRUE)
+  data <- data[!coord_na, ]
 }
 
-cat("\n=== EXTRAITS UTILES ===\n")
+# Export du fichier nettoye
+write.csv(data, output_path, row.names = FALSE)
 
-cat("\nTop 10 variables avec le plus de valeurs manquantes :\n")
-print(head(manquants, 10))
+# Resume final pour suivre ce qui a ete retire
+cat("\n=== RESUME ===\n")
+cat("Doublons exacts supprimes :", nb_doublons, "\n")
+cat("Doublons coordonnees supprimes :", nb_doublons_coord, "\n")
+cat("Lignes sans coordonnees :", nb_sans_coord, "\n")
+cat("Lignes finales :", nrow(data), "\n")
+cat("Fichier exporte :", output_path, "\n")
 
-cat("\nVariables numeriques avec valeurs aberrantes :\n")
-print(aberrantes[aberrantes$nb_aberrantes > 0, ])
-
-cat("\nExemples de lignes dupliquees exactes :\n")
-if (sum(doublons_lignes) > 0) {
-  print(head(data[doublons_lignes, ]))
-} else {
-  cat("Aucun doublon exact detecte.\n")
+# Affiche le nombre de NA par colonne apres nettoyage
+cat("\n=== VALEURS MANQUANTES PAR COLONNE ===\n")
+for (col in names(data)) {
+  cat(col, ":", sum(is.na(data[[col]])), "\n")
 }

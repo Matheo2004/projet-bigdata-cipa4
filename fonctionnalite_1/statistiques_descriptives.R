@@ -1,3 +1,4 @@
+# Trouve le dossier du script pour construire des chemins robustes
 get_script_dir <- function() {
   file_arg <- "--file="
   args <- commandArgs(trailingOnly = FALSE)
@@ -11,91 +12,120 @@ get_script_dir <- function() {
     return(dirname(normalizePath(sys.frames()[[1]]$ofile)))
   }
 
-  getwd()
+  return(getwd())
 }
 
-data_path <- file.path(get_script_dir(), "..", "data", "Data_Arbre_Input.csv")
-data <- read.csv(data_path, stringsAsFactors = FALSE)
+# Recherche automatique du dossier "data" selon le contexte d'execution
+resolve_data_dir <- function() {
+  script_dir <- get_script_dir()
+  candidates <- c(
+    file.path(script_dir, "..", "data"),
+    file.path(script_dir, "data"),
+    file.path(getwd(), "data")
+  )
 
+  for (path in candidates) {
+    if (dir.exists(path)) {
+      return(normalizePath(path, winslash = "/", mustWork = TRUE))
+    }
+  }
+
+  stop("Dossier 'data' introuvable. Verifie le dossier projet.")
+}
+
+# Convertit des valeurs texte en numerique (virgule -> point)
+to_numeric <- function(x) {
+  suppressWarnings(as.numeric(gsub(",", ".", x)))
+}
+
+# Cree un tableau de frequences lisible pour une variable qualitative
+safe_table <- function(x) {
+  x[x == ""] <- NA
+  sort(table(x, useNA = "ifany"), decreasing = TRUE)
+}
+
+# Choix du fichier: on privilegie le fichier propre s'il existe
+data_dir <- resolve_data_dir()
+clean_path <- file.path(data_dir, "Data_Arbre_Clean.csv")
+input_path <- file.path(data_dir, "Data_Arbre_Input.csv")
+data_path <- if (file.exists(clean_path)) clean_path else input_path
+
+# Arret si aucun fichier disponible
+if (!file.exists(data_path)) {
+  stop(paste("Aucun fichier de donnees trouve :", data_dir))
+}
+
+# Lecture des donnees
+data <- read.csv(data_path, stringsAsFactors = FALSE, check.names = FALSE)
+cat("Fichier charge :", data_path, "\n")
+cat("Lignes :", nrow(data), "| Colonnes :", ncol(data), "\n")
+
+# Variables analysees
 num_vars <- c("haut_tot", "haut_tronc", "tronc_diam", "age_estim", "clc_nbr_diag")
 cat_vars <- c("fk_arb_etat", "fk_situation", "feuillage", "remarquable", "clc_quartier")
 
-make_numeric <- function(x) {
-  x <- gsub(",", ".", x)
-  suppressWarnings(as.numeric(x))
-}
+# Statistiques univariees quantitatives
+cat("\n=== STATISTIQUES UNIVARIEES: VARIABLES QUANTITATIVES ===\n")
+for (v in num_vars) {
+  if (!(v %in% names(data))) {
+    cat("\nVariable absente :", v, "\n")
+    next
+  }
 
-univarie_quanti <- function(df, vars) {
-  res <- lapply(vars, function(v) {
-    x <- make_numeric(df[[v]])
-    x <- x[!is.na(x)]
-    data.frame(
-      variable = v,
-      effectif = length(x),
-      minimum = min(x),
-      q1 = unname(quantile(x, 0.25, na.rm = TRUE)),
-      mediane = median(x, na.rm = TRUE),
-      q3 = unname(quantile(x, 0.75, na.rm = TRUE)),
-      maximum = max(x),
-      moyenne = mean(x, na.rm = TRUE)
-    )
-  })
-  do.call(rbind, res)
-}
+  x <- to_numeric(data[[v]])
+  x <- x[!is.na(x)]
+  if (length(x) == 0) {
+    cat("\nVariable :", v, "- aucune valeur exploitable\n")
+    next
+  }
 
-univarie_quali <- function(df, var, top_n = 10) {
-  x <- df[[var]]
-  x[x == ""] <- NA
-  tab <- sort(table(x, useNA = "ifany"), decreasing = TRUE)
-  tab <- head(tab, top_n)
-  data.frame(
-    variable = var,
-    modalite = names(tab),
-    effectif = as.integer(tab),
-    pourcentage = round(100 * as.integer(tab) / nrow(df), 2),
-    row.names = NULL
-  )
-}
-
-bivarie_table <- function(df, var1, var2) {
-  x <- df[[var1]]
-  y <- df[[var2]]
-  x[x == ""] <- NA
-  y[y == ""] <- NA
-  addmargins(table(x, y, useNA = "no"))
-}
-
-bivarie_corr <- function(df, xvar, yvar) {
-  x <- make_numeric(df[[xvar]])
-  y <- make_numeric(df[[yvar]])
-  cor(x, y, use = "complete.obs")
-}
-
-bivarie_moyenne <- function(df, group_var, num_var) {
-  x <- make_numeric(df[[num_var]])
-  g <- df[[group_var]]
-  aggregate(x, by = list(g), FUN = function(z) round(mean(z, na.rm = TRUE), 2))
-}
-
-cat("STATISTIQUES UNIVARIEES - VARIABLES QUANTITATIVES\n")
-print(univarie_quanti(data, num_vars))
-
-cat("\nSTATISTIQUES UNIVARIEES - VARIABLES QUALITATIVES\n")
-for (v in cat_vars) {
   cat("\nVariable :", v, "\n")
-  print(univarie_quali(data, v))
+  cat("Effectif :", length(x), "\n")
+  cat("Min :", min(x), "\n")
+  cat("Q1 :", unname(quantile(x, 0.25)), "\n")
+  cat("Mediane :", median(x), "\n")
+  cat("Q3 :", unname(quantile(x, 0.75)), "\n")
+  cat("Max :", max(x), "\n")
+  cat("Moyenne :", mean(x), "\n")
 }
 
-cat("\nSTATISTIQUES BIVARIEES - ETAT x SITUATION\n")
-print(bivarie_table(data, "fk_arb_etat", "fk_situation"))
+# Statistiques univariees qualitatives
+cat("\n=== STATISTIQUES UNIVARIEES: VARIABLES QUALITATIVES ===\n")
+for (v in cat_vars) {
+  if (!(v %in% names(data))) {
+    cat("\nVariable absente :", v, "\n")
+    next
+  }
 
-cat("\nSTATISTIQUES BIVARIEES - REMARQUABLE x FEUILLAGE\n")
-print(bivarie_table(data, "remarquable", "feuillage"))
+  cat("\nVariable :", v, "\n")
+  print(safe_table(data[[v]]))
+}
 
-cat("\nSTATISTIQUES BIVARIEES - CORRELATION haut_tot x tronc_diam\n")
-print(round(bivarie_corr(data, "haut_tot", "tronc_diam"), 4))
+# Tableau croise etat / situation
+if (all(c("fk_arb_etat", "fk_situation") %in% names(data))) {
+  cat("\n=== TABLEAU CROISE ETAT x SITUATION ===\n")
+  print(table(data$fk_arb_etat, data$fk_situation, useNA = "ifany"))
+}
 
-cat("\nSTATISTIQUES BIVARIEES - HAUTEUR MOYENNE PAR SITUATION\n")
-res_moy <- bivarie_moyenne(data, "fk_situation", "haut_tot")
-names(res_moy) <- c("situation", "hauteur_moyenne")
-print(res_moy)
+# Tableau croise remarquable / feuillage
+if (all(c("remarquable", "feuillage") %in% names(data))) {
+  cat("\n=== TABLEAU CROISE REMARQUABLE x FEUILLAGE ===\n")
+  print(table(data$remarquable, data$feuillage, useNA = "ifany"))
+}
+
+# Correlation entre hauteur totale et diametre du tronc
+if (all(c("haut_tot", "tronc_diam") %in% names(data))) {
+  cat("\n=== CORRELATION haut_tot x tronc_diam ===\n")
+  x <- to_numeric(data$haut_tot)
+  y <- to_numeric(data$tronc_diam)
+  print(cor(x, y, use = "complete.obs"))
+}
+
+# Hauteur moyenne regroupee par situation
+if (all(c("fk_situation", "haut_tot") %in% names(data))) {
+  cat("\n=== HAUTEUR MOYENNE PAR SITUATION ===\n")
+  x <- to_numeric(data$haut_tot)
+  res <- aggregate(x, by = list(data$fk_situation), mean, na.rm = TRUE)
+  names(res) <- c("situation", "hauteur_moyenne")
+  print(res)
+}
