@@ -160,6 +160,36 @@ knitr::include_graphics(img_path("carte4_etat_arbres.png"))
 source("fonctionnalite_4-5/graphiques.R")
 ```
 
+## Corrélation variables
+
+Pour estimer l’âge de l’arbre les variables importantes sont celles qui touche à la physiologie de l’arbre donc la hauteur du tronc et la hauteur totale ainsi que le diamètre du tronc.
+
+Nous allons donc étudier la corrélation de ces variables avec l’âge estimé.
+
+Nous pouvons voir qu’une forte corrélation existe entre l’âge estimé et le diamètre du tronc ainsi que la hauteur du tronc mais aucune pour la hauteur totale. Nous pouvons hypothéser sur la dépendance de ces deux variables mais il est important d’évaluer l’interaction entre le diamètre et la taille de l’arbre.
+
+Nous pouvons observer une forte interaction entre le diamètre du tronc et sa hauteur ce qui signifie que l’impact du diamètre du tronc sur l’âge dépend de la hauteur du tronc, ce qui peut être dû une exposition plus importante au soleil pour les arbres qui sont hauts.
+
+En faisant le modèle de l’âge selon le diamètre et la hauteur du tronc en interaction nous obtenons un modèle avec une précision de 61% ce qui est un modèle intéressant mais pas excellent.
+
+Des pistes pour améliorer ce modèle est d’affiner sur l’espèce ou le quartier.
+
+Pour cela j’ai comparé plusieurs modèles en ajoutant le nom latin ou le quartier en interaction et en ajoutant la seconde variable sans interaction.
+
+Le modèle le plus performant est le 4e car son rss est le plus faible c’est-à-dire que son écart à la moyenne est le plus faible il est donc le modèle le plus précis avec une précision de 76%. Cela signifie que les variables qui explique le plus l’âge sont les dimensions du tronc et son espèce avec une petite influence sur le quartier par la gestion ou le type de sol.
+
+Pour déterminer dans quels quartiers nous devons ajouter des arbres, nous devons effectuer un croisement des données de quartier et du stade de développement des arbres.
+
+Nous pouvons ainsi observer que certains quartiers ont beaucoup d’arbres adulte et vieux comme le quartier de Saint-Jean avec 7% de ses arbres qui sont vieux et 70% de ses arbres qui sont adultes alors que d’autres ont une plus grande proportion de jeunes comme le quartier de Vermandois qui a 70% de ses arbres qui sont jeunes.
+
+Pour vérifier que notre échantillon représente toute la population nous devons faire un test de chi2 afin de vérifier la dépendance de ces deux valeurs.
+
+On peut voir que la p-value est très inférieure à 5% ce qui veut dire qu’une différence de répartition du stade de développement par quartier n’est pas dû au hasard, cela est renforcée par le x-squared, qui représente l’écart entre le réel et ce que serait la valeur si elle était aléatoire, qui est très grande. Cette différence par quartier peut s’expliquer par des quartiers plus jeunes que d’autres.
+
+Avec ce graphique on peut observer en bleu les quartiers qui ont sur-représentation d’arbres par rapport à la moyenne et en rouge ceux qui ont une sous-représentation.
+
+On peut donc en déduire qu’il faudrait planter des arbres dans les quartiers de l’Europe, de Neuville et de Harly qui ont une forte sous-représentation de jeunes arbres.
+
 # 5. Prediction de la variable « Age estime »
 
 La prediction est produite par le script execute en section **4** :
