@@ -1,0 +1,206 @@
+﻿---
+title: "Rapport - Projet Big Data CIPA4"
+author: "Mathéo, Marie, Padrig"
+date: "`r format(Sys.Date(), '%d/%m/%Y')`"
+output:
+  html_document:
+    toc: true
+---
+  
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(knitr)
+
+img_path <- function(filename) {
+  files <- list.files(recursive = TRUE, full.names = TRUE)
+  hit <- files[basename(files) == filename]
+  if (length(hit) == 0) stop(paste("Image introuvable :", filename))
+  normalizePath(hit[1], winslash = "/", mustWork = TRUE)
+}
+
+read_csv_loose <- function(path) {
+  essais <- list(
+    list(sep = ",", quote = "\""),
+    list(sep = ";", quote = "\""),
+    list(sep = ",", quote = ""),
+    list(sep = ";", quote = "")
+  )
+  for (e in essais) {
+    out <- tryCatch(
+      read.table(
+        path,
+        header = TRUE,
+        sep = e$sep,
+        quote = e$quote,
+        fill = TRUE,
+        comment.char = "",
+        stringsAsFactors = FALSE,
+        check.names = FALSE
+      ),
+      error = function(err) NULL
+    )
+    if (!is.null(out)) return(out)
+  }
+  NULL
+}
+
+df_input <- read_csv_loose("data/Data_Arbre_Input.csv")
+df_clean <- read_csv_loose("data/Data_Arbre_Clean.csv")
+```
+
+# 1. Exploration des donnees
+
+## 1.1 Description du jeu de donnees
+
+```{r exploration-dimensions}
+kable(
+  data.frame(
+    jeu = c("Input", "Clean"),
+    lignes = c(ifelse(is.null(df_input), NA, nrow(df_input)), ifelse(is.null(df_clean), NA, nrow(df_clean))),
+    colonnes = c(ifelse(is.null(df_input), NA, ncol(df_input)), ifelse(is.null(df_clean), NA, ncol(df_clean)))
+  ),
+  caption = "Dimensions des jeux de donnees"
+)
+```
+
+```{r include-description-md, echo=FALSE, results='asis'}
+cat(readLines("fonctionnalite_1/description_jeu_de_donnees.md", warn = FALSE), sep = "\n")
+```
+
+Interpretation:
+  
+-   Le jeu `Input` correspond aux donnees brutes.
+-   Le jeu `Clean` correspond aux donnees apres traitement.
+
+## 1.2 Nettoyage des donnees + valeurs manquantes/aberrantes + doublons + export
+
+```{r run-nettoyage-part1}
+source("fonctionnalite_1/nettoyage_donnees.R")
+```
+
+Interpretation:
+  
+-   Le script affiche les valeurs manquantes par variable.
+-   Il applique le nettoyage, filtre les valeurs aberrantes, supprime les doublons.
+-   Il exporte le fichier final `data/Data_Arbre_Clean.csv`.
+
+## 1.3 Statistiques descriptives univariees et bivariees
+
+```{r run-stats-part1}
+source("fonctionnalite_1/statistiques_descriptives.R")
+```
+
+Interpretation:
+  
+-   Les statistiques univariees decrivent chaque variable separement.
+
+# 2. Visualisation des donnees sur des graphiques
+
+```{r fig-etat, echo=FALSE}
+knitr::include_graphics(img_path("repartition_etat.png"))
+```
+
+```{r fig-age, echo=FALSE}
+knitr::include_graphics(img_path("repartition_age.png"))
+```
+
+```{r fig-quartier, echo=FALSE}
+knitr::include_graphics(img_path("repartition_quartier.png"))
+```
+
+```{r fig-stade, echo=FALSE}
+knitr::include_graphics(img_path("repartition_stade_dev.png"))
+```
+
+# 3. Visualisation des donnees sur une carte
+
+```{r carte-1, echo=FALSE}
+knitr::include_graphics(img_path("carte1_tous_les_arbres.png"))
+```
+
+```{r carte-2, echo=FALSE}
+knitr::include_graphics(img_path("carte2_arbres_remarquables.png"))
+```
+
+```{r carte-3, echo=FALSE}
+knitr::include_graphics(img_path("carte3_densite_quartier.png"))
+```
+
+```{r carte-4, echo=FALSE}
+knitr::include_graphics(img_path("carte4_etat_arbres.png"))
+```
+
+# 4. Etude des correlations
+
+```{r run-correlation-part1}
+source("fonctionnalite_4-5/correlation.R")
+```
+
+## Estimation de l'âge
+
+Pour estimer l'âge des arbres, nous avons d'abord regardé des variables simples et disponibles dans le jeu de données: la hauteur totale, la hauteur du tronc et le diamètre du tronc.
+L'objectif est de voir lesquelles sont les plus liées à l'âge estimé.
+```{r corr, echo=FALSE, fig.cap="Tableau de Corrélation"}
+knitr::include_graphics(img_path("correlation.png"))
+```
+Dans notre tableau, l'âge estimé est surtout corrélé avec le diamètre du tronc et, dans une moindre mesure, la hauteur du tronc. La hauteur totale semble moins informative.
+Ce constat reste descriptif: il montre une association, pas une causalité.
+```{r interaction, echo=FALSE, fig.cap="Etude des Interactions"}
+knitr::include_graphics(img_path("interaction.png"))
+```
+Le graphique d'interaction suggère que l'effet du diamètre peut varier selon la hauteur du tronc.
+Le modèle avec interaction obtient une qualité de prédiction d'environ 61%, ce qui est correct pour une première approche mais encore limité.
+
+Pour améliorer le modèle, nous avons testé l'ajout de variables de contexte (espèce et quartier), avec et sans interaction.
+```{r compar-model, echo=FALSE, fig.cap="Comparaison des modèles"}
+knitr::include_graphics(img_path("compar_model.png"))
+```
+Dans nos essais, le modèle 4 est celui qui donne le meilleur compromis (RSS plus faible), avec une précision d'environ 76%.
+Cela indique que les dimensions du tronc restent centrales, et que l'espèce apporte de l'information supplémentaire. L'effet du quartier existe, mais semble plus modéré.
+
+## Ajout d'arbres dans des quartiers
+
+Pour déterminer dans quels quartiers nous devons ajouter des arbres, nous devons effectuer un croisement des données de quartier et du stade de développement des arbres.
+```{r tab-croise, echo=FALSE, fig.cap="Tableau Croisé"}
+knitr::include_graphics(img_path("tab_croise.png"))
+```
+Le tableau croisé montre des profils différents selon les quartiers: certains ont une proportion plus forte d'arbres adultes/vieux, d'autres davantage de jeunes.
+Pour vérifier que ces différences ne sont pas seulement dues au hasard d'échantillonnage, nous avons appliqué un test du chi2.
+```{r chi2, echo=FALSE, fig.cap="Test du Chi2"}
+knitr::include_graphics(img_path("test_chi2.png"))
+```
+La p-value obtenue est très inférieure à 5%, donc on rejette l'hypothèse d'indépendance entre quartier et stade de développement.
+Autrement dit, la répartition des stades varie bien selon le quartier dans nos données.
+```{r mosaic, echo=FALSE, fig.cap="Graphique de corrélation"}
+knitr::include_graphics(img_path("mosaicplot.png"))
+```
+Le graphique mosaïque aide à visualiser les sur/sous-représentations par quartier.
+Sur cette base, les quartiers de l'Europe, de Neuville et de Harly ressortent comme des zones où la part de jeunes arbres est plus faible, donc potentiellement prioritaires pour la plantation.
+
+## Prédiction d'arbres à abattre
+Pour estimer le risque d'abattage, nous avons entraîné une régression logistique qui donne, pour chaque arbre, une probabilité comprise entre 0 et 1.
+Le modèle utilise des variables de dimensions (hauteur, diamètre, âge estimé) et des variables de contexte (quartier, secteur, situation, etc.).
+Après filtrage des valeurs manquantes, l'analyse porte sur 8973 arbres.
+
+Les indicateurs globaux vont dans le sens d'un modèle utile (déviance résiduelle plus faible que la déviance nulle), mais ce résultat doit être interprété avec prudence: il faudrait idéalement une validation sur un jeu test séparé pour confirmer la performance.
+
+En prenant un seuil de 45%, nous obtenons une liste d'arbres à surveiller en priorité.
+Dans cet échantillon, plusieurs arbres avaient déjà été abattus, ce qui suggère que le score capte une partie du risque, sans garantir une prédiction parfaite arbre par arbre.
+
+
+# 6. Export du fichier nettoye
+
+L'export est deja realise en section **1.2** via le script `fonctionnalite_1/nettoyage_donnees.R`.
+
+Fichier exporte:
+
+-   `data/Data_Arbre_Clean.csv`
+
+# 7. Diagramme de Gantt
+
+```{r fig-gantt, echo=FALSE}
+knitr::include_graphics(img_path("Gant.png"))
+```
+
+
+
