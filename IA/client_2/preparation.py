@@ -9,7 +9,7 @@ from sklearn.ensemble import RandomForestRegressor
 from sklearn.metrics import mean_absolute_error, r2_score
 
 # Chargement des données
-df = pd.read_csv(r"C:\Users\mathe\Documents\projetbigdata_trinome3\IA\Data_Arbre_Clean.csv")
+df = pd.read_csv(r"C:\Users\mathe\Documents\projetbigdata_trinome3\IA\client_2\Data_Arbre_Clean.csv")
 
 # Suppression des lignes sans valeur
 df = df.dropna(subset=["age_estim"])
@@ -95,5 +95,5 @@ y_pred = best_model.predict(X_test)
 print("MAE :", mean_absolute_error(y_test, y_pred)) # Mean absolute error
 print("R² :", r2_score(y_test, y_pred)) # Coefficient de détermination
 
-# Sauvegarde du modèle pour usage WEB
+# Sauvegarde du modèle entrainé
 joblib.dump(best_model, "modele_arbre.pkl")
