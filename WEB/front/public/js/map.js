@@ -1,146 +1,197 @@
 import { logError } from "./errorHandler.js";
 
-const API_BASE_URL = window.location.origin;
-const API_URL = `${API_BASE_URL}/WEB/api`;
+const API_URL = `${window.location.origin}/WEB/api`;
 
-// Fonction pour afficher la carte avec les arbres
-export function renderMap(trees) {
-  const mapContainer = document.getElementById("map");
-  const mapLoading = document.getElementById("mapLoading");
+// ── Leaflet ──────────────────────────────────────────────────────────────────
+// On charge Leaflet dynamiquement pour ne pas alourdir la page si la carte
+// n'est pas utilisée
+function loadLeaflet() {
+  return new Promise((resolve) => {
+    if (window.L) return resolve(); // déjà chargé, on ne recharge pas
 
-  if (!trees || trees.length === 0) {
-    if (mapContainer) mapContainer.innerHTML = '<div class="text-center text-muted p-5">Aucune donnée de localisation disponible</div>';
-    if (mapLoading) mapLoading.style.display = "none";
-    return;
+    // Feuille de style Leaflet
+    const css = document.createElement("link");
+    css.rel = "stylesheet";
+    css.href = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.css";
+    document.head.appendChild(css);
+
+    // Script Leaflet
+    const script = document.createElement("script");
+    script.src = "https://unpkg.com/leaflet@1.9.4/dist/leaflet.js";
+    script.onload = resolve;
+    document.head.appendChild(script);
+  });
+}
+
+// On garde une référence à la carte pour pouvoir la détruire avant d'en créer
+// une nouvelle (sinon Leaflet lève une erreur)
+let mapInstance = null;
+
+function destroyMap() {
+  if (mapInstance) {
+    mapInstance.remove();
+    mapInstance = null;
   }
+}
 
-  const validTrees = trees.filter(t =>
-    t.latitude && t.longitude && !isNaN(t.latitude) && !isNaN(t.longitude)
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Initialise une carte Leaflet centrée sur OpenStreetMap
+function createMap(containerId) {
+  const map = L.map(containerId);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: '© <a href="https://www.openstreetmap.org/">OpenStreetMap</a>',
+    maxZoom: 19,
+  }).addTo(map);
+  return map;
+}
+
+// Filtre les arbres qui ont des coordonnées GPS valides
+function filterValid(trees) {
+  return trees.filter(
+    (t) =>
+      t.latitude && t.longitude &&
+      !isNaN(parseFloat(t.latitude)) &&
+      !isNaN(parseFloat(t.longitude))
   );
+}
 
-  if (validTrees.length === 0) {
-    if (mapContainer) mapContainer.innerHTML = '<div class="text-center text-muted p-5">Aucune localisation disponible</div>';
-    if (mapLoading) mapLoading.style.display = "none";
+// Prépare le conteneur HTML de la carte (vide + hauteur fixe)
+function prepareContainer(container) {
+  container.innerHTML = "";
+  container.style.height = "500px";
+}
+
+// ── renderMap ─────────────────────────────────────────────────────────────────
+// Affiche tous les arbres de la BDD sous forme de marqueurs 🌳
+// Les coordonnées viennent directement du tableau `trees` passé en paramètre
+export async function renderMap(trees) {
+  const container = document.getElementById("map");
+  const loader    = document.getElementById("mapLoading");
+
+  // Aucun arbre → message d'information
+  const valid = filterValid(trees);
+  if (!valid.length) {
+    if (container) container.innerHTML = '<div class="text-center text-muted p-5">Aucune localisation disponible</div>';
+    if (loader) loader.style.display = "none";
     return;
   }
 
-  const avgLat = validTrees.reduce((sum, t) => sum + parseFloat(t.latitude), 0) / validTrees.length;
-  const avgLon = validTrees.reduce((sum, t) => sum + parseFloat(t.longitude), 0) / validTrees.length;
+  // Chargement de Leaflet puis création de la carte
+  await loadLeaflet();
+  destroyMap();
+  prepareContainer(container);
+  mapInstance = createMap("map");
 
-  const data = [{
-    type: "scattermap",
-    lat: validTrees.map(t => parseFloat(t.latitude)),
-    lon: validTrees.map(t => parseFloat(t.longitude)),
-    mode: "markers",
-    marker: { size: 8, color: "#40916c", opacity: 0.8 },
-    text: validTrees.map(t => `<b>${escapeHtml(t.espece || "Arbre")}</b><br>Hauteur: ${parseFloat(t.hauteur || 0).toFixed(1)}m`),
-    hovertemplate: "%{text}<br>Lat: %{lat:.4f}<br>Lon: %{lon:.4f}<extra></extra>",
-    name: "Arbres"
-  }];
+  // Icône emoji arbre pour chaque marqueur
+  const treeIcon = L.divIcon({
+    html: "🌳",
+    className: "",
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
 
-  const layout = {
-    map: {
-      style: "open-street-map",
-      center: { lat: avgLat, lon: avgLon },
-      zoom: 12
-    },
-    height: 500,
-    margin: { l: 0, r: 0, t: 30, b: 0 },
-    title: `Carte des arbres (${validTrees.length} arbres)`
-  };
+  // On place chaque arbre sur la carte et on collecte ses coordonnées
+  // pour que fitBounds puisse zoomer automatiquement sur l'ensemble des arbres
+  const bounds = [];
+  valid.forEach((t) => {
+    const lat = parseFloat(t.latitude);
+    const lon = parseFloat(t.longitude);
+    bounds.push([lat, lon]);
 
-  const config = { responsive: true, displayModeBar: true, displaylogo: false };
+    L.marker([lat, lon], { icon: treeIcon })
+      .bindPopup(`
+        <b>${t.espece || t.nomfrancais || "Arbre"}</b><br>
+        Hauteur : ${t.hauteur || 0} m<br>
+        État : ${t.arb_etat || "—"}<br>
+        Stade : ${t.stadedev || "—"}
+      `)
+      .addTo(mapInstance);
+  });
 
-  try {
-    if (mapContainer) Plotly.newPlot("map", data, layout, config);
-    if (mapLoading) mapLoading.style.display = "none";
-  } catch (error) {
-    logError(error, "Rendu de la carte");
-    if (mapContainer) mapContainer.innerHTML = '<div class="text-center text-danger p-5">Erreur: ' + error.message + '</div>';
-  }
+  // Zoom automatique pour englober tous les marqueurs
+  mapInstance.fitBounds(bounds, { padding: [30, 30] });
+
+  if (loader) loader.style.display = "none";
 }
 
-function escapeHtml(text) {
-  const div = document.createElement("div");
-  div.textContent = text;
-  return div.innerHTML;
-}
-
+// ── renderClusteredMap ────────────────────────────────────────────────────────
+// Récupère les arbres depuis /clusters?n=X et les affiche avec une couleur
+// différente par cluster (Petit / Grand / Moyen)
 export async function renderClusteredMap(n_clusters = 2) {
-  const mapContainer = document.getElementById("map");
-  const mapLoading = document.getElementById("mapLoading");
+  const container = document.getElementById("map");
+  const loader    = document.getElementById("mapLoading");
+  if (!container) return;
 
-  if (!mapContainer) return;
+  if (loader) loader.style.display = "block";
 
   try {
-    if (mapLoading) mapLoading.style.display = "block";
+    // Appel API
+    const res = await fetch(`${API_URL}/clusters?n=${n_clusters}`);
+    if (!res.ok) throw new Error(`Erreur HTTP ${res.status}`);
+    const { success, data } = await res.json();
 
-    const response = await fetch(`${API_URL}/clusters?n=${n_clusters}`);
-    if (!response.ok) throw new Error(`Erreur HTTP ${response.status}`);
-
-    const result = await response.json();
-
-    if (!result.success || !result.data || result.data.length === 0) {
-      mapContainer.innerHTML = '<div class="text-center text-muted p-5">Aucun arbre à afficher</div>';
-      if (mapLoading) mapLoading.style.display = "none";
+    if (!success || !data?.length) {
+      container.innerHTML = '<div class="text-center text-muted p-5">Aucun arbre à afficher</div>';
+      if (loader) loader.style.display = "none";
       return;
     }
 
-    // Grouper par cluster
-    const clusters = {};
-    result.data.forEach(tree => {
-      if (!clusters[tree.cluster]) clusters[tree.cluster] = [];
-      clusters[tree.cluster].push(tree);
-    });
+    // Création de la carte
+    await loadLeaflet();
+    destroyMap();
+    prepareContainer(container);
+    mapInstance = createMap("map");
 
-    // Couleurs par cluster
-    const clusterColors = { 1: "#40916c", 2: "#e63946", 3: "#f4a261" };
-    const clusterLabels = { 1: "Petit", 2: "Grand", 3: "Moyen" };
+    // Correspondance cluster → couleur et libellé
+    const COLORS = { 1: "#40916c", 2: "#e63946", 3: "#f4a261" };
+    const LABELS = { 1: "Petit",   2: "Grand",   3: "Moyen"   };
 
-    const traces = Object.keys(clusters).map(clusterId => {
-      const clusterTrees = clusters[clusterId];
-      return {
-        type: "scattermap",
-        lat: clusterTrees.map(t => t.latitude),
-        lon: clusterTrees.map(t => t.longitude),
-        mode: "markers",
-        marker: {
-          size: 8,
-          color: clusterColors[clusterId] || "#40916c",
-          opacity: 0.8
-        },
-        text: clusterTrees.map(t => `<b>${t.espece}</b><br>Hauteur: ${t.hauteur}m`),
-        hovertemplate: "%{text}<extra></extra>",
-        name: clusterLabels[clusterId] || `Cluster ${clusterId}`
-      };
-    });
-
-    const allLats = result.data.map(t => t.latitude);
-    const allLons = result.data.map(t => t.longitude);
-    const avgLat = allLats.reduce((a, b) => a + b) / allLats.length;
-    const avgLon = allLons.reduce((a, b) => a + b) / allLons.length;
-
-    const layout = {
-      map: {
-        style: "open-street-map",
-        center: { lat: avgLat, lon: avgLon },
-        zoom: 12
-      },
-      height: 500,
-      margin: { l: 0, r: 0, t: 50, b: 0 },
-      title: `Clustering des arbres (${n_clusters} clusters)`,
-      showlegend: true,
-      legend: { x: 0.01, y: 0.99, bgcolor: "rgba(255,255,255,0.8)" }
+    // Légende affichée en bas à droite
+    const legend = L.control({ position: "bottomright" });
+    legend.onAdd = () => {
+      const div = L.DomUtil.create("div");
+      div.style.cssText = "background:white;padding:10px;border-radius:8px;box-shadow:0 2px 8px rgba(0,0,0,.2);font-size:13px;";
+      const keys = n_clusters === 2 ? [1, 2] : [1, 2, 3];
+      div.innerHTML = "<b>Clusters</b><br>" + keys.map((k) =>
+        `<span style="display:inline-block;width:12px;height:12px;border-radius:50%;background:${COLORS[k]};margin-right:6px;"></span>${LABELS[k]}`
+      ).join("<br>");
+      return div;
     };
+    legend.addTo(mapInstance);
 
-    const config = { responsive: true, displayModeBar: true, displaylogo: false };
+    // Placement des marqueurs + fitBounds
+    const bounds = [];
+    data.forEach((t) => {
+      const lat   = parseFloat(t.latitude);
+      const lon   = parseFloat(t.longitude);
+      const color = COLORS[t.cluster] || "#40916c";
+      const label = LABELS[t.cluster] || `Cluster ${t.cluster}`;
+      bounds.push([lat, lon]);
 
-    Plotly.newPlot("map", traces, layout, config);
-    if (mapLoading) mapLoading.style.display = "none";
+      // Cercle coloré selon le cluster
+      const icon = L.divIcon({
+        html: `<div style="width:12px;height:12px;border-radius:50%;background:${color};border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);"></div>`,
+        className: "",
+        iconSize: [12, 12],
+        iconAnchor: [6, 6],
+      });
+
+      L.marker([lat, lon], { icon })
+        .bindPopup(`
+          <b>${t.espece || "Arbre"}</b><br>
+          Hauteur : ${t.hauteur || 0} m<br>
+          Taille : <b>${label}</b>
+        `)
+        .addTo(mapInstance);
+    });
+
+    mapInstance.fitBounds(bounds, { padding: [30, 30] });
 
   } catch (error) {
     logError(error, "Rendu de la carte avec clustering");
-    mapContainer.innerHTML = '<div class="text-center text-danger p-5">Erreur lors du chargement des clusters</div>';
-    if (mapLoading) mapLoading.style.display = "none";
+    container.innerHTML = '<div class="text-center text-danger p-5">Erreur lors du chargement des clusters</div>';
+  } finally {
+    if (loader) loader.style.display = "none";
   }
 }

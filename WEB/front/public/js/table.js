@@ -1,66 +1,41 @@
-// Fonction pour afficher les arbres dans le tableau
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+// Formate un nombre avec 2 décimales, retourne "N/A" si la valeur est invalide
+function formatNumber(value) {
+  const num = parseFloat(value);
+  return isNaN(num) ? "N/A" : num.toFixed(2);
+}
+
+// Échappe le HTML pour éviter les injections XSS
+function escapeHtml(text) {
+  const div = document.createElement("div");
+  div.textContent = text;
+  return div.innerHTML;
+}
+
+// ── renderTable ───────────────────────────────────────────────────────────────
+// Affiche la liste des arbres dans le tableau #treeTable
 export function renderTable(trees) {
-  // Récupérer le corps du tableau
-  // Note: L'ID treeTable est directement sur le tbody
   const tbody = document.querySelector("#treeTable");
 
-  // Vérifier si l'élément existe (pour éviter les erreurs sur d'autres pages)
-  if (!tbody) {
-    console.warn("⚠️ Tableau #treeTable non trouvé sur cette page");
-    return;
-  }
+  // La fonction peut être appelée sur des pages sans tableau, on sort discrètement
+  if (!tbody) return;
 
-  // Vider le tableau
-  tbody.innerHTML = "";
-
-  // Vérifier s'il y a des arbres à afficher
-  if (!trees || trees.length === 0) {
+  // Cas où il n'y a aucun arbre à afficher
+  if (!trees?.length) {
     tbody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Aucun arbre trouvé</td></tr>';
     return;
   }
 
-  // Parcourir chaque arbre et créer une ligne du tableau
-  trees.forEach(tree => {
-    // Créer une nouvelle ligne
-    const tr = document.createElement("tr");
-
-    // Ajouter le contenu HTML de la ligne
-    tr.innerHTML = `
+  // On construit tout le HTML d'un coup avec join() pour éviter
+  // les manipulations DOM répétées (plus performant que appendChild en boucle)
+  tbody.innerHTML = trees.map((tree) => `
+    <tr>
       <td><strong>${escapeHtml(tree.espece || "N/A")}</strong></td>
       <td>${formatNumber(tree.hauteur)} m</td>
-      <td>${formatNumber(tree.diametre)} cm</td>
+      <td>${formatNumber(tree.tronc_diam)} cm</td>
       <td>${formatNumber(tree.latitude)}</td>
       <td>${formatNumber(tree.longitude)}</td>
-    `;
-
-    // Ajouter la ligne au tableau
-    tbody.appendChild(tr);
-  });
-}
-
-// Fonction pour formater un nombre avec 2 décimales
-function formatNumber(value) {
-  // Si la valeur est vide, retourner N/A
-  if (value === null || value === undefined || value === "") {
-    return "N/A";
-  }
-  
-  // Convertir la valeur en nombre
-  const num = parseFloat(value);
-  
-  // Si ce n'est pas un nombre, retourner N/A
-  if (isNaN(num)) return "N/A";
-  
-  // Retourner le nombre arrondi à 2 décimales
-  return num.toFixed(2);
-}
-
-// Fonction pour sécuriser le texte (éviter les injections XSS)
-function escapeHtml(text) {
-  // Créer un élément div pour échapper le texte
-  const div = document.createElement("div");
-  // Assigner le texte en tant que contenu texte (pas HTML)
-  div.textContent = text;
-  // Retourner le contenu HTML (qui sera maintenant sécurisé)
-  return div.innerHTML;
+    </tr>
+  `).join("");
 }

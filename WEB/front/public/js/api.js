@@ -1,76 +1,46 @@
-// URL de base de l'API - s'adapte au domaine actuel
-const API_BASE_URL = window.location.origin;
-const API_URL = `${API_BASE_URL}/WEB/api`;
+const API_URL = `${window.location.origin}/WEB/api`;
 
-/**
- * Fonction pour récupérer la liste des arbres
- */
+// ── Helper ────────────────────────────────────────────────────────────────────
+
+// Wrapper fetch qui gère les erreurs HTTP et parse automatiquement le JSON
+// Toutes les fonctions API passent par ici pour éviter la répétition
+async function request(endpoint, options = {}) {
+  const res = await fetch(`${API_URL}${endpoint}`, {
+    headers: { "Content-Type": "application/json" },
+    ...options,
+  });
+
+  if (!res.ok) {
+    // On tente de lire le message d'erreur retourné par le serveur PHP
+    try {
+      const err = await res.json();
+      throw new Error(err.details || err.error || `Erreur HTTP ${res.status}`);
+    } catch {
+      throw new Error(`Erreur HTTP ${res.status}`);
+    }
+  }
+
+  return res.json();
+}
+
+// ── Endpoints ─────────────────────────────────────────────────────────────────
+
+// Récupère tous les arbres de la BDD
 export async function getTrees() {
-  try {
-    const res = await fetch(`${API_URL}/trees`);
-    
-    if (!res.ok) {
-      throw new Error(`Erreur HTTP ${res.status}`);
-    }
-    
-    const data = await res.json();
-    
-    // Retourner le tableau de données
-    return data.data || [];
-  } catch (error) {
-    console.error('Erreur lors de la récupération des arbres:', error);
-    throw error;
-  }
+  const data = await request("/trees");
+  return data.data || [];
 }
 
-/**
- * Fonction pour ajouter un nouvel arbre
- */
-export async function addTree(data) {
-  try {
-    const res = await fetch(`${API_URL}/add_tree`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify(data)
-    });
-
-    if (!res.ok) {
-      // Essayer de parser la réponse d'erreur du serveur
-      try {
-        const errorData = await res.json();
-        const errorMessage = errorData.details || errorData.error || `Erreur HTTP ${res.status}`;
-        const hint = errorData.hint ? ` - ${errorData.hint}` : "";
-        throw new Error(`${errorMessage}${hint}`);
-      } catch (parseError) {
-        throw new Error(`Erreur HTTP ${res.status}`);
-      }
-    }
-
-    const response = await res.json();
-    return response;
-  } catch (error) {
-    console.error('Erreur lors de l\'ajout d\'arbre:', error);
-    throw error;
-  }
+// Ajoute un arbre et retourne la réponse complète (avec id_tree si succès)
+export async function addTree(treeData) {
+  return request("/add_tree", {
+    method: "POST",
+    body: JSON.stringify(treeData),
+  });
 }
 
-/**
- * Fonction pour récupérer un arbre spécifique
- */
+// Récupère un arbre par son id
 export async function getTree(id) {
-  try {
-    const res = await fetch(`${API_URL}/tree/${id}`);
-    
-    if (!res.ok) {
-      throw new Error(`Erreur HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-    return data.data || data;
-  } catch (error) {
-    console.error(`Erreur lors de la récupération de l'arbre ${id}:`, error);
-    throw error;
-  }
+  const data = await request(`/tree/${id}`);
+  return data.data || data;
 }

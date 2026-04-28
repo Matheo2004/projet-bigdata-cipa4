@@ -3,80 +3,45 @@ ini_set('display_errors', 0);
 header('Content-Type: application/json');
 header('Access-Control-Allow-Origin: *');
 
-// Récupérer la route (ex: /clusters)
-$requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
-$route = str_replace('/WEB/api', '', $requestUri);
+// ── Config ────────────────────────────────────────────────────────────────────
 
-$csv_path = __DIR__ . '/cluster/arbres_complet_avec_clusters.csv';
+$PYTHON  = 'C:\\Users\\mathe\\PycharmProjects\\pythonProject\\venv\\Scripts\\python.exe';
+$CSV     = __DIR__ . '/cluster/arbres_complet_avec_clusters.csv';
+$CONVERT = __DIR__ . '/cluster/convert.py';
 
-// Connexion MySQL
-function getDb() {
-    $pdo = new PDO(
+// Extrait la route courante (ex: "/trees", "/clusters")
+$route = str_replace('/WEB/api', '', parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH));
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+// Retourne une connexion PDO MySQL (appelée uniquement si nécessaire)
+function getDb(): PDO {
+    return new PDO(
         'mysql:host=localhost;dbname=arbres_db;charset=utf8',
-        'root',
-        '',
+        'root', '',
         [PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION]
     );
-    return $pdo;
 }
 
-// Fonction utilitaire pour lire le CSV
-function readCsv($csv_path) {
-    if (!file_exists($csv_path)) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'CSV introuvable : ' . $csv_path]);
-        exit;
-    }
-    $handle = fopen($csv_path, 'r');
-    $headers = fgetcsv($handle);
-    $rows = [];
-    while (($row = fgetcsv($handle)) !== false) {
-        $rows[] = array_combine($headers, $row);
-    }
-    fclose($handle);
-    return $rows;
-}
-
-// Route : GET /clusters?n=2
-if ($route === '/clusters' && $_SERVER['REQUEST_METHOD'] === 'GET') {
-    $n = isset($_GET['n']) ? (int)$_GET['n'] : 2;
-    $csv_path_abs = __DIR__ . '/cluster/arbres_complet_avec_clusters.csv';
-    $script_path  = __DIR__ . '/cluster/convert.py';
-
-    $python = 'C:\\Users\\mathe\\PycharmProjects\\pythonProject\\venv\\Scripts\\python.exe';
-    $command = "\"$python\" \"$script_path\" \"$csv_path_abs\" $n 2>&1";
-    exec($command, $output, $resultCode);
-
-    if ($resultCode !== 0) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => implode("\n", $output)]);
-        exit;
-    }
-
-    $data = json_decode($output[0], true);
-    if ($data === null) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => 'Erreur de conversion Python']);
-        exit;
-    }
-
-    echo json_encode(['success' => true, 'data' => $data]);
+// Envoie une réponse JSON et stoppe le script
+function respond(array $payload, int $code = 200): void {
+    http_response_code($code);
+    echo json_encode($payload);
     exit;
 }
 
-// Route : GET /trees
+// ── Route : GET /trees ────────────────────────────────────────────────────────
+// Retourne tous les arbres de la BDD avec leurs coordonnées GPS et leur espèce
 if ($route === '/trees' && $_SERVER['REQUEST_METHOD'] === 'GET') {
     try {
-        $pdo = getDb();
-
-        $stmt = $pdo->query("
-            SELECT 
+        $stmt = getDb()->query("
+            SELECT
                 a.id,
-                a.haut_tot      AS hauteur,
+                a.haut_tot   AS hauteur,
                 a.haut_tronc,
                 a.tronc_diam,
                 a.remarquable,
-                a.nomlatin      AS espece,
+                a.nomlatin   AS espece,
                 e.nomfrancais,
                 a.arb_etat,
                 a.stadedev,
@@ -89,17 +54,75 @@ if ($route === '/trees' && $_SERVER['REQUEST_METHOD'] === 'GET') {
             JOIN espece e      ON a.nomlatin = e.nomlatin
         ");
 
-        $data = $stmt->fetchAll(PDO::FETCH_ASSOC);
-
-        echo json_encode(['success' => true, 'data' => $data]);
+        respond(['success' => true, 'data' => $stmt->fetchAll(PDO::FETCH_ASSOC)]);
 
     } catch (PDOException $e) {
-        http_response_code(500);
-        echo json_encode(['success' => false, 'error' => $e->getMessage()]);
+        respond(['success' => false, 'error' => $e->getMessage()], 500);
     }
-    exit;
 }
 
-// Route inconnue
-http_response_code(404);
-echo json_encode(['success' => false, 'error' => "Route '$route' introuvable"]);
+// ── Route : POST /add_tree ────────────────────────────────────────────────────
+// Insère un nouvel arbre + ses coordonnées dans la BDD
+if ($route === '/add_tree' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    try {
+        $body = json_decode(file_get_contents('php://input'), true);
+
+        // Validation — tous les champs sont obligatoires
+        foreach (['espece', 'hauteur', 'diametre', 'latitude', 'longitude'] as $field) {
+            if (empty($body[$field]) && $body[$field] !== 0) {
+                respond(['success' => false, 'error' => "Champ manquant : $field"], 400);
+            }
+        }
+
+        $pdo = getDb();
+
+        // 1. Coordonnées GPS
+        $stmt = $pdo->prepare("INSERT INTO coordonnees (latitude, longitude) VALUES (:lat, :lon)");
+        $stmt->execute([':lat' => (float)$body['latitude'], ':lon' => (float)$body['longitude']]);
+        $id_coord = $pdo->lastInsertId();
+
+        // 2. Espèce — on l'insère si elle n'existe pas encore (évite l'erreur FK)
+        $pdo->prepare("INSERT INTO espece (nomlatin, nomfrancais) VALUES (:n, :n) ON DUPLICATE KEY UPDATE nomlatin = nomlatin")
+            ->execute([':n' => trim($body['espece'])]);
+
+        // 3. Arbre — les champs non saisis dans le formulaire prennent la valeur "Inconnu"
+        $stmt = $pdo->prepare("
+            INSERT INTO arbre (haut_tot, haut_tronc, tronc_diam, remarquable, type_pied, nomlatin, arb_etat, stadedev, type_port, id_coordonnees)
+            VALUES (:hauteur, 0, :diam, 0, 'Inconnu', :espece, 'Inconnu', 'Inconnu', 'Inconnu', :id_coord)
+        ");
+        $stmt->execute([
+            ':hauteur'   => (float)$body['hauteur'],
+            ':diam'      => (float)$body['diametre'],
+            ':espece'    => trim($body['espece']),
+            ':id_coord'  => $id_coord,
+        ]);
+
+        respond(['success' => true, 'id_tree' => $pdo->lastInsertId()]);
+
+    } catch (PDOException $e) {
+        respond(['success' => false, 'error' => $e->getMessage()], 500);
+    }
+}
+
+// ── Route : GET /clusters?n=2 ─────────────────────────────────────────────────
+// Appelle le script Python qui lit le CSV, convertit les coordonnées X/Y → GPS
+// et retourne les arbres groupés par cluster
+if ($route === '/clusters' && $_SERVER['REQUEST_METHOD'] === 'GET') {
+    $n = isset($_GET['n']) ? (int)$_GET['n'] : 2;
+
+    exec("\"$PYTHON\" \"$CONVERT\" \"$CSV\" $n 2>&1", $output, $code);
+
+    if ($code !== 0) {
+        respond(['success' => false, 'error' => implode("\n", $output)], 500);
+    }
+
+    $data = json_decode($output[0], true);
+    if ($data === null) {
+        respond(['success' => false, 'error' => 'Réponse Python invalide'], 500);
+    }
+
+    respond(['success' => true, 'data' => $data]);
+}
+
+// ── Route inconnue ────────────────────────────────────────────────────────────
+respond(['success' => false, 'error' => "Route '$route' introuvable"], 404);

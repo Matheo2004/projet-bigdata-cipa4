@@ -1,218 +1,136 @@
-// Fichier pour gérer les erreurs de toute l'application
-
-// Classe personnalisée pour les erreurs
-class AppError extends Error {
+// ── Classe d'erreur personnalisée ─────────────────────────────────────────────
+// Étend Error pour ajouter un type (error/warning/info/success) et un timestamp
+export class AppError extends Error {
   constructor(message, type = "error", details = null) {
     super(message);
-    this.name = "AppError";
-    this.type = type; // "error", "warning", "info"
-    this.details = details;
+    this.name      = "AppError";
+    this.type      = type;
+    this.details   = details;
     this.timestamp = new Date();
   }
 }
 
-// Fonction principale pour afficher les erreurs
-function showError(message, type = "error", container = null) {
-  // Créer un élément pour afficher l'erreur
-  const alertDiv = document.createElement("div");
-  
-  // Déterminer les classes Bootstrap selon le type d'erreur
-  let alertClass = "alert alert-danger";
-  let icon = "❌";
-  
-  if (type === "warning") {
-    alertClass = "alert alert-warning";
-    icon = "⚠️";
-  } else if (type === "info") {
-    alertClass = "alert alert-info";
-    icon = "ℹ️";
-  } else if (type === "success") {
-    alertClass = "alert alert-success";
-    icon = "✅";
-  }
-  
-  // Ajouter les classes et le contenu
-  alertDiv.className = alertClass + " alert-dismissible fade show";
-  alertDiv.role = "alert";
-  alertDiv.innerHTML = `
+// ── Affichage des alertes ─────────────────────────────────────────────────────
+
+// Correspondance type → classes Bootstrap et icône
+const ALERT_STYLES = {
+  error:   { cls: "alert-danger",  icon: "❌" },
+  warning: { cls: "alert-warning", icon: "⚠️" },
+  info:    { cls: "alert-info",    icon: "ℹ️" },
+  success: { cls: "alert-success", icon: "✅" },
+};
+
+// Affiche une alerte Bootstrap dans le conteneur cible
+// Si aucun conteneur n'est précisé, on cherche #errorContainer, puis <main>, puis <body>
+export function showError(message, type = "error", container = null) {
+  const { cls, icon } = ALERT_STYLES[type] ?? ALERT_STYLES.error;
+
+  const alert = document.createElement("div");
+  alert.className = `alert ${cls} alert-dismissible fade show`;
+  alert.role = "alert";
+  alert.innerHTML = `
     <strong>${icon} ${type.toUpperCase()}</strong>
     <div>${message}</div>
     <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
   `;
-  
-  // Trouver le conteneur pour afficher l'erreur
-  let target = container;
-  
-  // Si pas de conteneur spécifié, chercher un élément par défaut
-  if (!target) {
-    target = document.getElementById("errorContainer") || 
-             document.querySelector("main") || 
-             document.body;
-  }
-  
-  // Ajouter l'alerte au début du conteneur
-  if (target.firstChild) {
-    target.insertBefore(alertDiv, target.firstChild);
-  } else {
-    target.appendChild(alertDiv);
-  }
-  
-  // Faire défiler vers l'erreur
-  alertDiv.scrollIntoView({ behavior: "smooth", block: "center" });
-  
-  // Supprimer automatiquement après 8 secondes
-  setTimeout(() => {
-    alertDiv.remove();
-  }, 8000);
-  
-  return alertDiv;
+
+  const target = container
+    ?? document.getElementById("errorContainer")
+    ?? document.querySelector("main")
+    ?? document.body;
+
+  // Insère l'alerte en haut du conteneur pour qu'elle soit visible immédiatement
+  target.insertBefore(alert, target.firstChild);
+  alert.scrollIntoView({ behavior: "smooth", block: "center" });
+
+  // Suppression automatique après 8 secondes
+  setTimeout(() => alert.remove(), 8000);
+
+  return alert;
 }
 
-// Fonction pour afficher les erreurs dans un formulaire
-function showFormError(formElement, fieldName, message) {
-  // Récupérer le champ du formulaire
-  const field = formElement.querySelector(`[name="${fieldName}"]`);
-  
+// Raccourcis pour les types courants
+export const showSuccess = (msg, el) => showError(msg, "success", el);
+export const showWarning = (msg, el) => showError(msg, "warning", el);
+export const showInfo    = (msg, el) => showError(msg, "info",    el);
+
+// ── Gestion des erreurs de formulaire ────────────────────────────────────────
+
+// Marque un champ comme invalide et affiche un message sous le champ
+export function showFormError(form, fieldName, message) {
+  const field = form.querySelector(`[name="${fieldName}"]`);
   if (!field) return;
-  
-  // Ajouter la classe d'erreur Bootstrap
+
   field.classList.add("is-invalid");
-  
-  // Chercher ou créer un élément de feedback
-  let feedback = field.parentElement.querySelector(".invalid-feedback");
-  
-  if (!feedback) {
-    feedback = document.createElement("div");
-    feedback.className = "invalid-feedback d-block";
-    field.parentElement.appendChild(feedback);
-  }
-  
-  // Afficher le message d'erreur
+
+  // Réutilise le feedback existant ou en crée un nouveau
+  const feedback = field.parentElement.querySelector(".invalid-feedback")
+    ?? document.createElement("div");
+  feedback.className   = "invalid-feedback d-block";
   feedback.textContent = message;
+  field.parentElement.appendChild(feedback);
 }
 
-// Fonction pour effacer les erreurs d'un formulaire
-function clearFormErrors(formElement) {
-  // Supprimer la classe d'erreur de tous les champs
-  const fields = formElement.querySelectorAll(".is-invalid");
-  fields.forEach(field => {
-    field.classList.remove("is-invalid");
-  });
-  
-  // Supprimer tous les messages de feedback
-  const feedbacks = formElement.querySelectorAll(".invalid-feedback");
-  feedbacks.forEach(feedback => {
-    feedback.remove();
-  });
+// Nettoie tous les messages d'erreur d'un formulaire
+export function clearFormErrors(form) {
+  form.querySelectorAll(".is-invalid").forEach(f => f.classList.remove("is-invalid"));
+  form.querySelectorAll(".invalid-feedback").forEach(f => f.remove());
 }
 
-// Fonction pour gérer les erreurs API
-async function handleApiError(error, context = "") {
-  // Créer un message d'erreur détaillé
-  let message = "Une erreur s'est produite";
-  let type = "error";
-  let details = "";
-  
-  // Vérifier si c'est une erreur réseau
-  if (!navigator.onLine) {
-    message = "❌ Pas de connexion internet";
-    type = "error";
-  } 
-  // Erreur personnalisée de l'API (Error lancée avec Erreur HTTP)
-  else if (error.message && error.message.includes("Erreur HTTP")) {
-    const statusCode = error.message.match(/\d{3}/)?.[0];
-    
-    if (statusCode === "500") {
-      message = "❌ Erreur serveur (500) - Vérifiez les logs du serveur";
-    } else if (statusCode === "404") {
-      message = "❌ Ressource non trouvée";
-    } else if (statusCode === "400") {
-      message = "❌ Données invalides";
-    } else if (statusCode === "403") {
-      message = "❌ Accès refusé";
-    } else {
-      message = `❌ Erreur HTTP ${statusCode}`;
-    }
-  } 
-  // Erreur de réseau
-  else if (error.message === "Failed to fetch") {
-    message = "❌ Impossible de se connecter à l'API";
-  }
-  // Autres erreurs
-  else {
-    message = `❌ ${error.message || "Erreur inconnue"}`;
-  }
-  
-  // Ajouter le contexte s'il y en a un
-  if (context) {
-    message += ` (${context})`;
-  }
-  
-  // Logger l'erreur
-  logError(error, context);
-  
-  return {
-    message: message,
-    type: type,
-    details: details,
-    originalError: error
-  };
-}
+// ── Logger ────────────────────────────────────────────────────────────────────
 
-// Fonction pour logger les erreurs
-function logError(error, context = "") {
-  // Créer un message de log structuré
-  const logMessage = {
+// Logue une erreur structurée dans la console
+export function logError(error, context = "") {
+  console.error("🔴 ERREUR:", {
     timestamp: new Date().toISOString(),
-    context: context,
+    context,
     message: error.message || String(error),
-    stack: error.stack,
-    type: error.name || "UnknownError"
-  };
-  
-  // Afficher dans la console
-  console.error("🔴 ERREUR:", logMessage);
-  
-  // Optionnel: envoyer les erreurs vers un serveur de logging
-  // sendErrorToServer(logMessage);
+    stack:   error.stack,
+    type:    error.name || "UnknownError",
+  });
 }
 
-// Fonction pour afficher un message de succès
-function showSuccess(message, container = null) {
-  showError(message, "success", container);
+// ── Gestion des erreurs API ───────────────────────────────────────────────────
+
+// Codes HTTP → messages lisibles
+const HTTP_MESSAGES = {
+  400: "Données invalides",
+  403: "Accès refusé",
+  404: "Ressource non trouvée",
+  500: "Erreur serveur (500) - Vérifiez les logs",
+};
+
+// Analyse une erreur et retourne un objet { message, type } prêt à afficher
+export async function handleApiError(error, context = "") {
+  let message;
+
+  if (!navigator.onLine) {
+    message = "Pas de connexion internet";
+  } else if (error.message?.includes("Erreur HTTP")) {
+    const code = error.message.match(/\d{3}/)?.[0];
+    message = HTTP_MESSAGES[code] ?? `Erreur HTTP ${code}`;
+  } else if (error.message === "Failed to fetch") {
+    message = "Impossible de se connecter à l'API";
+  } else {
+    message = error.message || "Erreur inconnue";
+  }
+
+  if (context) message += ` (${context})`;
+
+  logError(error, context);
+
+  return { message: `❌ ${message}`, type: "error", originalError: error };
 }
 
-// Fonction pour afficher un message d'avertissement
-function showWarning(message, container = null) {
-  showError(message, "warning", container);
-}
+// ── Gestionnaires globaux ─────────────────────────────────────────────────────
+// Filet de sécurité pour les erreurs non capturées par les try/catch
 
-// Fonction pour afficher un message d'info
-function showInfo(message, container = null) {
-  showError(message, "info", container);
-}
-
-// Gestionnaire d'erreur global
-window.addEventListener("error", (event) => {
-  console.error("Erreur non capturée:", event.error);
+window.addEventListener("error", (e) => {
+  console.error("Erreur non capturée:", e.error);
   showError("Une erreur non gérée s'est produite. Veuillez rafraîchir la page.");
 });
 
-// Gestionnaire pour les promesses rejetées
-window.addEventListener("unhandledrejection", (event) => {
-  console.error("Promesse rejetée non gérée:", event.reason);
+window.addEventListener("unhandledrejection", (e) => {
+  console.error("Promesse rejetée non gérée:", e.reason);
   showError("Une erreur asynchrone non gérée s'est produite.");
 });
-
-// Exporter les fonctions
-export {
-  AppError,
-  showError,
-  showFormError,
-  clearFormErrors,
-  handleApiError,
-  logError,
-  showSuccess,
-  showWarning,
-  showInfo
-};
