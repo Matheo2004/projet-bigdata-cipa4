@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ajouter un arbre - Gestion du Patrimoine Arboré</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+
+<header class="navbar navbar-expand-lg navbar-dark bg-gradient">
+  <div class="container-fluid">
+    <h1 class="navbar-brand mb-0"><i class="bi bi-tree-fill"></i> 🌳 Gestion du Patrimoine Arboré</h1>
+    <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <nav class="collapse navbar-collapse" id="navbarNav">
+      <ul class="navbar-nav ms-auto">
+        <li class="nav-item"><a class="nav-link" href="../index.html">Accueil</a></li>
+        <li class="nav-item"><a class="nav-link active" href="add.html">Ajouter un arbre</a></li>
+        <li class="nav-item"><a class="nav-link" href="visualisation.html">Visualisation</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main class="main-content">
+  <div class="container my-5">
+    <div class="row justify-content-center">
+      <div class="col-lg-6">
+        <div class="form-container">
+          <h2 class="mb-4 text-center">Ajouter un nouvel arbre</h2>
+          
+          <form id="treeForm" class="needs-validation" novalidate>
+            <div class="mb-3">
+              <label for="espece" class="form-label">🌿 Espèce <span class="text-danger">*</span></label>
+              <input type="text" class="form-control" id="espece" name="espece" placeholder="Ex: Chêne, Érable, Bouleau..." required>
+              <div class="invalid-feedback">L'espèce est requise.</div>
+            </div>
+
+            <div class="mb-3">
+              <label for="hauteur" class="form-label">📏 Hauteur totale (m)</label>
+              <input type="number" class="form-control" id="hauteur" name="hauteur" placeholder="Ex: 20.5" step="0.1">
+              <small class="text-muted">Hauteur en mètres</small>
+            </div>
+
+            <div class="mb-3">
+              <label for="diametre" class="form-label">⭕ Diamètre (cm)</label>
+              <input type="number" class="form-control" id="diametre" name="diametre" placeholder="Ex: 45" step="0.1">
+              <small class="text-muted">Diamètre en centimètres</small>
+            </div>
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label for="latitude" class="form-label">📍 Latitude</label>
+                <input type="number" class="form-control" id="latitude" name="latitude" placeholder="Ex: 49.85" step="0.0001">
+                <small class="text-muted">Coordonnée N</small>
+              </div>
+
+              <div class="col-md-6 mb-3">
+                <label for="longitude" class="form-label">📍 Longitude</label>
+                <input type="number" class="form-control" id="longitude" name="longitude" placeholder="Ex: 3.28" step="0.0001">
+                <small class="text-muted">Coordonnée E</small>
+              </div>
+            </div>
+
+            <div class="alert alert-info" id="successMessage" style="display: none;">
+              ✅ Arbre ajouté avec succès!
+            </div>
+
+            <div class="alert alert-danger" id="errorMessage" style="display: none;"></div>
+
+            <button type="submit" class="btn btn-primary btn-lg w-100">
+              <i class="bi bi-plus-circle"></i> Ajouter l'arbre
+            </button>
+
+            <a href="../index.html" class="btn btn-outline-secondary btn-lg w-100 mt-2">Retour à l'accueil</a>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="bg-light border-top mt-5">
+  <div class="container py-4">
+    <div class="row">
+      <div class="col-md-6">
+        <h6>À propos</h6>
+        <p class="text-muted small">Projet de gestion du patrimoine arboré développé par le trinôme 3 de l'ISEN.</p>
+      </div>
+      <div class="col-md-6 text-md-end">
+        <p class="text-muted small">© 2026 - Tous droits réservés</p>
+      </div>
+    </div>
+  </div>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script type="module" src="../js/form.js"></script>
+
+</body>
+</html>
